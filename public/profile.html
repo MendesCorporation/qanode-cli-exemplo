@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskManager - Perfil</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand" data-testid="nav-brand">TaskManager</div>
+    <div class="nav-actions">
+      <a href="/dashboard" class="btn btn-ghost" data-testid="nav-dashboard">Dashboard</a>
+      <button class="btn btn-ghost" data-testid="logout-btn" onclick="handleLogout()">Sair</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="page-header">
+      <h2>Meu Perfil</h2>
+    </div>
+
+    <div class="profile-grid">
+      <!-- Edit Profile -->
+      <div class="card" data-testid="profile-card">
+        <h3 class="card-title">Informações pessoais</h3>
+        <form id="profile-form" data-testid="profile-form" onsubmit="handleUpdateProfile(event)">
+          <div class="form-group">
+            <label for="profile-name">Nome</label>
+            <input type="text" id="profile-name" data-testid="profile-name" required>
+          </div>
+          <div class="form-group">
+            <label for="profile-email">E-mail</label>
+            <input type="email" id="profile-email" data-testid="profile-email" required>
+          </div>
+          <div class="form-group">
+            <label>Membro desde</label>
+            <input type="text" id="profile-since" data-testid="profile-since" readonly disabled>
+          </div>
+          <div id="profile-error" data-testid="profile-error" class="error-message" role="alert" style="display:none"></div>
+          <div id="profile-success" data-testid="profile-success" class="success-message" role="status" style="display:none"></div>
+          <button type="submit" class="btn btn-primary" data-testid="profile-save">Salvar alterações</button>
+        </form>
+      </div>
+
+      <!-- Change Password -->
+      <div class="card" data-testid="password-card">
+        <h3 class="card-title">Alterar senha</h3>
+        <form id="password-form" data-testid="password-form" onsubmit="handleChangePassword(event)">
+          <div class="form-group">
+            <label for="current-password">Senha atual</label>
+            <input type="password" id="current-password" data-testid="current-password" required autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label for="new-password">Nova senha</label>
+            <input type="password" id="new-password" data-testid="new-password" required minlength="6" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label for="confirm-new-password">Confirmar nova senha</label>
+            <input type="password" id="confirm-new-password" data-testid="confirm-new-password" required autocomplete="new-password">
+          </div>
+          <div id="password-error" data-testid="password-error" class="error-message" role="alert" style="display:none"></div>
+          <div id="password-success" data-testid="password-success" class="success-message" role="status" style="display:none"></div>
+          <button type="submit" class="btn btn-primary" data-testid="password-save">Alterar senha</button>
+        </form>
+      </div>
+
+      <!-- Danger Zone -->
+      <div class="card card-danger" data-testid="danger-zone">
+        <h3 class="card-title danger-title">Zona de perigo</h3>
+        <p class="danger-desc">Ao deletar sua conta, todos os seus dados e tarefas serão permanentemente removidos. Esta ação não pode ser desfeita.</p>
+        <button class="btn btn-danger" data-testid="delete-account-btn" onclick="openDeleteAccountModal()">Deletar minha conta</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Delete Account Modal -->
+  <div id="delete-account-modal" data-testid="delete-account-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="delete-account-title" style="display:none">
+    <div class="modal-overlay" onclick="closeDeleteAccountModal()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="delete-account-title">Deletar conta</h3>
+        <button class="modal-close" data-testid="delete-account-modal-close" onclick="closeDeleteAccountModal()" aria-label="Fechar">&times;</button>
+      </div>
+      <p>Esta ação é <strong>irreversível</strong>. Para confirmar, insira sua senha:</p>
+      <div class="form-group">
+        <label for="delete-password">Senha</label>
+        <input type="password" id="delete-password" data-testid="delete-account-password" placeholder="Sua senha atual" autocomplete="current-password">
+      </div>
+      <div id="delete-account-error" data-testid="delete-account-error" class="error-message" role="alert" style="display:none"></div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-testid="delete-account-cancel" onclick="closeDeleteAccountModal()">Cancelar</button>
+        <button class="btn btn-danger" data-testid="delete-account-confirm" onclick="confirmDeleteAccount()">Confirmar exclusão</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function init() {
+      const authRes = await fetch('/api/auth/me');
+      if (!authRes.ok) { window.location.href = '/'; return; }
+
+      const profileRes = await fetch('/api/profile');
+      if (!profileRes.ok) return;
+      const profile = await profileRes.json();
+
+      document.getElementById('profile-name').value = profile.name;
+      document.getElementById('profile-email').value = profile.email;
+      document.getElementById('profile-since').value = new Date(profile.created_at).toLocaleDateString('pt-BR');
+    }
+
+    async function handleUpdateProfile(e) {
+      e.preventDefault();
+      const errorEl = document.getElementById('profile-error');
+      const successEl = document.getElementById('profile-success');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      const name = document.getElementById('profile-name').value;
+      const email = document.getElementById('profile-email').value;
+
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error;
+          errorEl.style.display = 'block';
+        } else {
+          successEl.textContent = 'Perfil atualizado com sucesso!';
+          successEl.style.display = 'block';
+        }
+      } catch {
+        errorEl.textContent = 'Erro de conexão';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function handleChangePassword(e) {
+      e.preventDefault();
+      const errorEl = document.getElementById('password-error');
+      const successEl = document.getElementById('password-success');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      const current_password = document.getElementById('current-password').value;
+      const new_password = document.getElementById('new-password').value;
+      const confirm = document.getElementById('confirm-new-password').value;
+
+      if (new_password !== confirm) {
+        errorEl.textContent = 'As novas senhas não conferem';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/profile/password', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_password, new_password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error;
+          errorEl.style.display = 'block';
+        } else {
+          successEl.textContent = 'Senha alterada com sucesso!';
+          successEl.style.display = 'block';
+          document.getElementById('password-form').reset();
+        }
+      } catch {
+        errorEl.textContent = 'Erro de conexão';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    function openDeleteAccountModal() {
+      document.getElementById('delete-password').value = '';
+      document.getElementById('delete-account-error').style.display = 'none';
+      document.getElementById('delete-account-modal').style.display = 'flex';
+    }
+
+    function closeDeleteAccountModal() {
+      document.getElementById('delete-account-modal').style.display = 'none';
+    }
+
+    async function confirmDeleteAccount() {
+      const errorEl = document.getElementById('delete-account-error');
+      errorEl.style.display = 'none';
+      const password = document.getElementById('delete-password').value;
+
+      if (!password) {
+        errorEl.textContent = 'Insira sua senha para confirmar';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error;
+          errorEl.style.display = 'block';
+        } else {
+          window.location.href = '/';
+        }
+      } catch {
+        errorEl.textContent = 'Erro de conexão';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function handleLogout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
+    init();
+  </script>
+</body>
+</html>

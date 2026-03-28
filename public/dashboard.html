@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskManager - Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <nav class="navbar">
+    <div class="nav-brand" data-testid="nav-brand">TaskManager</div>
+    <div class="nav-actions">
+      <span id="user-greeting" data-testid="user-greeting"></span>
+      <a href="/profile" class="btn btn-ghost" data-testid="nav-profile">Perfil</a>
+      <button class="btn btn-ghost" data-testid="logout-btn" onclick="handleLogout()">Sair</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div class="page-header">
+      <h2>Minhas Tarefas</h2>
+      <button class="btn btn-primary" data-testid="new-task-btn" onclick="openTaskModal()">+ Nova Tarefa</button>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-grid" data-testid="stats-grid">
+      <div class="stat-card" data-testid="stat-total">
+        <span class="stat-number" id="stat-total">0</span>
+        <span class="stat-label">Total</span>
+      </div>
+      <div class="stat-card stat-pending" data-testid="stat-pending">
+        <span class="stat-number" id="stat-pending">0</span>
+        <span class="stat-label">Pendentes</span>
+      </div>
+      <div class="stat-card stat-progress" data-testid="stat-in-progress">
+        <span class="stat-number" id="stat-in-progress">0</span>
+        <span class="stat-label">Em andamento</span>
+      </div>
+      <div class="stat-card stat-done" data-testid="stat-done">
+        <span class="stat-number" id="stat-done">0</span>
+        <span class="stat-label">Concluídas</span>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters" data-testid="filters">
+      <button class="filter-btn active" data-testid="filter-all" data-filter="" onclick="applyFilter(this, '')">Todas</button>
+      <button class="filter-btn" data-testid="filter-pending" data-filter="pending" onclick="applyFilter(this, 'pending')">Pendentes</button>
+      <button class="filter-btn" data-testid="filter-in-progress" data-filter="in_progress" onclick="applyFilter(this, 'in_progress')">Em andamento</button>
+      <button class="filter-btn" data-testid="filter-done" data-filter="done" onclick="applyFilter(this, 'done')">Concluídas</button>
+    </div>
+
+    <!-- Task List -->
+    <div id="task-list" data-testid="task-list" class="task-list">
+      <div id="task-loading" class="empty-state">Carregando tarefas...</div>
+    </div>
+
+    <!-- Empty State -->
+    <div id="empty-state" data-testid="empty-state" class="empty-state" style="display:none">
+      <p>Nenhuma tarefa encontrada.</p>
+      <button class="btn btn-primary" onclick="openTaskModal()">Criar primeira tarefa</button>
+    </div>
+  </main>
+
+  <!-- Task Modal -->
+  <div id="task-modal" data-testid="task-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" style="display:none">
+    <div class="modal-overlay" onclick="closeTaskModal()"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="modal-title">Nova Tarefa</h3>
+        <button class="modal-close" data-testid="modal-close" onclick="closeTaskModal()" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="task-form" data-testid="task-form" onsubmit="handleSaveTask(event)">
+        <input type="hidden" id="task-id">
+        <div class="form-group">
+          <label for="task-title">Título *</label>
+          <input type="text" id="task-title" data-testid="task-title" placeholder="Título da tarefa" required>
+        </div>
+        <div class="form-group">
+          <label for="task-description">Descrição</label>
+          <textarea id="task-description" data-testid="task-description" placeholder="Descrição opcional" rows="3"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-priority">Prioridade</label>
+            <select id="task-priority" data-testid="task-priority">
+              <option value="low">Baixa</option>
+              <option value="medium" selected>Média</option>
+              <option value="high">Alta</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="task-status">Status</label>
+            <select id="task-status" data-testid="task-status">
+              <option value="pending">Pendente</option>
+              <option value="in_progress">Em andamento</option>
+              <option value="done">Concluída</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="task-due-date">Data limite</label>
+          <input type="date" id="task-due-date" data-testid="task-due-date">
+        </div>
+        <div id="task-form-error" data-testid="task-form-error" class="error-message" role="alert" style="display:none"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" data-testid="task-cancel" onclick="closeTaskModal()">Cancelar</button>
+          <button type="submit" class="btn btn-primary" data-testid="task-save" id="task-save-btn">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="delete-modal" data-testid="delete-modal" class="modal" role="dialog" aria-modal="true" style="display:none">
+    <div class="modal-overlay" onclick="closeDeleteModal()"></div>
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>Confirmar exclusão</h3>
+      </div>
+      <p>Tem certeza que deseja excluir esta tarefa? Esta ação não pode ser desfeita.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" data-testid="delete-cancel" onclick="closeDeleteModal()">Cancelar</button>
+        <button class="btn btn-danger" data-testid="delete-confirm" onclick="confirmDelete()">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let currentFilter = '';
+    let deleteTaskId = null;
+
+    async function checkAuth() {
+      const res = await fetch('/api/auth/me');
+      if (!res.ok) {
+        window.location.href = '/';
+        return null;
+      }
+      return res.json();
+    }
+
+    async function init() {
+      const user = await checkAuth();
+      if (!user) return;
+      document.getElementById('user-greeting').textContent = `Olá, ${user.name}`;
+      loadTasks();
+    }
+
+    async function loadTasks() {
+      const url = currentFilter ? `/api/tasks?status=${currentFilter}` : '/api/tasks';
+      const res = await fetch(url);
+      if (!res.ok) return;
+
+      const tasks = await res.json();
+      renderTasks(tasks);
+      updateStats(tasks);
+    }
+
+    function updateStats(tasks) {
+      // Reload all stats without filter
+      fetch('/api/tasks').then(r => r.json()).then(allTasks => {
+        document.getElementById('stat-total').textContent = allTasks.length;
+        document.getElementById('stat-pending').textContent = allTasks.filter(t => t.status === 'pending').length;
+        document.getElementById('stat-in-progress').textContent = allTasks.filter(t => t.status === 'in_progress').length;
+        document.getElementById('stat-done').textContent = allTasks.filter(t => t.status === 'done').length;
+      });
+    }
+
+    function renderTasks(tasks) {
+      const list = document.getElementById('task-list');
+      const empty = document.getElementById('empty-state');
+      const loading = document.getElementById('task-loading');
+      if (loading) loading.remove();
+
+      if (tasks.length === 0) {
+        list.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+      list.innerHTML = tasks.map(task => `
+        <div class="task-card priority-${task.priority}" data-testid="task-card" data-task-id="${task.id}" data-status="${task.status}">
+          <div class="task-card-header">
+            <div class="task-info">
+              <h4 class="task-title" data-testid="task-card-title">${escapeHtml(task.title)}</h4>
+              ${task.description ? `<p class="task-desc" data-testid="task-card-desc">${escapeHtml(task.description)}</p>` : ''}
+            </div>
+            <div class="task-actions">
+              <button class="btn-icon" data-testid="edit-task-btn" title="Editar" onclick="openEditModal(${task.id})">✏️</button>
+              <button class="btn-icon btn-icon-danger" data-testid="delete-task-btn" title="Excluir" onclick="openDeleteModal(${task.id})">🗑️</button>
+            </div>
+          </div>
+          <div class="task-card-footer">
+            <span class="badge badge-${task.status}" data-testid="task-status-badge">${statusLabel(task.status)}</span>
+            <span class="badge badge-priority-${task.priority}" data-testid="task-priority-badge">${priorityLabel(task.priority)}</span>
+            ${task.due_date ? `<span class="due-date" data-testid="task-due-date">📅 ${formatDate(task.due_date)}</span>` : ''}
+            <div class="status-actions">
+              ${task.status !== 'in_progress' && task.status !== 'done' ? `<button class="btn btn-xs btn-ghost" data-testid="start-task-btn" onclick="changeStatus(${task.id}, 'in_progress')">Iniciar</button>` : ''}
+              ${task.status !== 'done' ? `<button class="btn btn-xs btn-success" data-testid="complete-task-btn" onclick="changeStatus(${task.id}, 'done')">Concluir</button>` : ''}
+              ${task.status === 'done' ? `<button class="btn btn-xs btn-ghost" data-testid="reopen-task-btn" onclick="changeStatus(${task.id}, 'pending')">Reabrir</button>` : ''}
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function applyFilter(btn, filter) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentFilter = filter;
+      loadTasks();
+    }
+
+    function openTaskModal() {
+      document.getElementById('modal-title').textContent = 'Nova Tarefa';
+      document.getElementById('task-id').value = '';
+      document.getElementById('task-form').reset();
+      document.getElementById('task-form-error').style.display = 'none';
+      document.getElementById('task-status').closest('.form-group').style.display = 'none';
+      document.getElementById('task-modal').style.display = 'flex';
+    }
+
+    async function openEditModal(id) {
+      const res = await fetch('/api/tasks');
+      const tasks = await res.json();
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      document.getElementById('modal-title').textContent = 'Editar Tarefa';
+      document.getElementById('task-id').value = task.id;
+      document.getElementById('task-title').value = task.title;
+      document.getElementById('task-description').value = task.description || '';
+      document.getElementById('task-priority').value = task.priority;
+      document.getElementById('task-status').value = task.status;
+      document.getElementById('task-due-date').value = task.due_date ? task.due_date.split('T')[0] : '';
+      document.getElementById('task-status').closest('.form-group').style.display = 'block';
+      document.getElementById('task-form-error').style.display = 'none';
+      document.getElementById('task-modal').style.display = 'flex';
+    }
+
+    function closeTaskModal() {
+      document.getElementById('task-modal').style.display = 'none';
+    }
+
+    function openDeleteModal(id) {
+      deleteTaskId = id;
+      document.getElementById('delete-modal').style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+      deleteTaskId = null;
+      document.getElementById('delete-modal').style.display = 'none';
+    }
+
+    async function handleSaveTask(e) {
+      e.preventDefault();
+      const btn = document.getElementById('task-save-btn');
+      const errorEl = document.getElementById('task-form-error');
+      errorEl.style.display = 'none';
+      btn.disabled = true;
+
+      const id = document.getElementById('task-id').value;
+      const payload = {
+        title: document.getElementById('task-title').value,
+        description: document.getElementById('task-description').value,
+        priority: document.getElementById('task-priority').value,
+        status: document.getElementById('task-status').value,
+        due_date: document.getElementById('task-due-date').value || null
+      };
+
+      try {
+        const res = await fetch(id ? `/api/tasks/${id}` : '/api/tasks', {
+          method: id ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error;
+          errorEl.style.display = 'block';
+        } else {
+          closeTaskModal();
+          loadTasks();
+        }
+      } catch {
+        errorEl.textContent = 'Erro de conexão';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function confirmDelete() {
+      if (!deleteTaskId) return;
+      const res = await fetch(`/api/tasks/${deleteTaskId}`, { method: 'DELETE' });
+      if (res.ok) {
+        closeDeleteModal();
+        loadTasks();
+      }
+    }
+
+    async function changeStatus(id, status) {
+      await fetch(`/api/tasks/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      loadTasks();
+    }
+
+    async function handleLogout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
+    }
+
+    function statusLabel(s) {
+      return { pending: 'Pendente', in_progress: 'Em andamento', done: 'Concluída' }[s] || s;
+    }
+    function priorityLabel(p) {
+      return { low: 'Baixa', medium: 'Média', high: 'Alta' }[p] || p;
+    }
+    function formatDate(d) {
+      return new Date(d).toLocaleDateString('pt-BR');
+    }
+    function escapeHtml(str) {
+      const d = document.createElement('div');
+      d.appendChild(document.createTextNode(str));
+      return d.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>

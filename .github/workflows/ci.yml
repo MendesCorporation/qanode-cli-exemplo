@@ -1,0 +1,127 @@
+name: CI - Task Manager
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Run QANode Suite
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: taskmanager
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Init database
+        run: psql postgresql://postgres:postgres@localhost:5432/taskmanager -f database/init.sql
+
+      - name: Start application
+        run: node server.js &
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/taskmanager
+          SESSION_SECRET: ci_secret
+          PORT: 3000
+
+      - name: Wait for app to be ready
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:3000/ > /dev/null; then
+              echo "App ready"
+              exit 0
+            fi
+            echo "Waiting... ($i)"
+            sleep 2
+          done
+          echo "App failed to start" && exit 1
+
+      - name: Expose app via Cloudflare Tunnel
+        run: |
+          curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+          chmod +x cloudflared
+          ./cloudflared tunnel --url http://localhost:3000 --logfile /tmp/cf.log &
+          echo "Waiting for tunnel URL..."
+          for i in $(seq 1 30); do
+            CF_URL=$(grep -oP 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cf.log 2>/dev/null | head -1)
+            if [ -n "$CF_URL" ]; then
+              echo "Tunnel URL: $CF_URL"
+              echo "APP_PUBLIC_URL=$CF_URL" >> $GITHUB_ENV
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Failed to get tunnel URL" && exit 1
+
+      - name: Install QANode CLI
+        run: npm install -g @qanode/cli
+
+      - name: Verify QANode auth
+        run: qanode auth me
+        env:
+          QANODE_URL: ${{ secrets.QANODE_URL }}
+          QANODE_TOKEN: ${{ secrets.QANODE_TOKEN }}
+
+      - name: Run Suite - Task Manager
+        id: run_suite
+        run: |
+          qanode run suite \
+            --suite-name "Suite Task Manager" \
+            --project-name "Task Manager" \
+            --var base_url_ci=${{ env.APP_PUBLIC_URL }} \
+            --wait \
+            --timeout 300 \
+            --json
+        env:
+          QANODE_URL: ${{ secrets.QANODE_URL }}
+          QANODE_TOKEN: ${{ secrets.QANODE_TOKEN }}
+
+      - name: Download test artifacts
+        if: always()
+        run: |
+          RUN_ID=$(qanode run suite \
+            --suite-name "Suite Task Manager" \
+            --project-name "Task Manager" \
+            --json | jq -r '.id' 2>/dev/null || echo "")
+          if [ -n "$RUN_ID" ]; then
+            qanode runs artifacts --run-id "$RUN_ID" --out ./artifacts || true
+          fi
+        env:
+          QANODE_URL: ${{ secrets.QANODE_URL }}
+          QANODE_TOKEN: ${{ secrets.QANODE_TOKEN }}
+        continue-on-error: true
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./artifacts/
+          if-no-files-found: ignore
+          retention-days: 30

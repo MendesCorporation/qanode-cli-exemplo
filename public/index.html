@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskManager - Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="auth-page">
+  <div class="auth-container">
+    <div class="auth-header">
+      <h1>TaskManager</h1>
+      <p>Organize suas tarefas com eficiência</p>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs" role="tablist">
+      <button class="tab active" data-testid="tab-login" id="tab-login" role="tab" aria-selected="true" onclick="showTab('login')">Entrar</button>
+      <button class="tab" data-testid="tab-register" id="tab-register" role="tab" aria-selected="false" onclick="showTab('register')">Cadastrar</button>
+    </div>
+
+    <!-- Login Form -->
+    <form id="login-form" data-testid="login-form" class="auth-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" data-testid="login-email" name="email" placeholder="seu@email.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="login-password">Senha</label>
+        <input type="password" id="login-password" data-testid="login-password" name="password" placeholder="Sua senha" required autocomplete="current-password">
+      </div>
+      <div id="login-error" data-testid="login-error" class="error-message" role="alert" style="display:none"></div>
+      <button type="submit" id="login-btn" data-testid="login-submit" class="btn btn-primary btn-full">Entrar</button>
+    </form>
+
+    <!-- Register Form -->
+    <form id="register-form" data-testid="register-form" class="auth-form" style="display:none" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label for="register-name">Nome completo</label>
+        <input type="text" id="register-name" data-testid="register-name" name="name" placeholder="Seu nome" required autocomplete="name">
+      </div>
+      <div class="form-group">
+        <label for="register-email">E-mail</label>
+        <input type="email" id="register-email" data-testid="register-email" name="email" placeholder="seu@email.com" required autocomplete="email">
+      </div>
+      <div class="form-group">
+        <label for="register-password">Senha</label>
+        <input type="password" id="register-password" data-testid="register-password" name="password" placeholder="Mínimo 6 caracteres" required autocomplete="new-password" minlength="6">
+      </div>
+      <div class="form-group">
+        <label for="register-confirm">Confirmar senha</label>
+        <input type="password" id="register-confirm" data-testid="register-confirm" name="confirm" placeholder="Repita a senha" required autocomplete="new-password">
+      </div>
+      <div id="register-error" data-testid="register-error" class="error-message" role="alert" style="display:none"></div>
+      <div id="register-success" data-testid="register-success" class="success-message" role="status" style="display:none"></div>
+      <button type="submit" id="register-btn" data-testid="register-submit" class="btn btn-primary btn-full">Criar conta</button>
+    </form>
+  </div>
+
+  <script>
+    // Check if already logged in
+    fetch('/api/auth/me').then(r => {
+      if (r.ok) window.location.href = '/dashboard';
+    });
+
+    function showTab(tab) {
+      document.querySelectorAll('.tab').forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+      document.getElementById('login-form').style.display = 'none';
+      document.getElementById('register-form').style.display = 'none';
+      document.getElementById(`tab-${tab}`).classList.add('active');
+      document.getElementById(`tab-${tab}`).setAttribute('aria-selected', 'true');
+      document.getElementById(`${tab}-form`).style.display = 'flex';
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const btn = document.getElementById('login-btn');
+      const errorEl = document.getElementById('login-error');
+      errorEl.style.display = 'none';
+      btn.disabled = true;
+      btn.textContent = 'Entrando...';
+
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error;
+          errorEl.style.display = 'block';
+        } else {
+          window.location.href = '/dashboard';
+        }
+      } catch {
+        errorEl.textContent = 'Erro de conexão';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn = document.getElementById('register-btn');
+      const errorEl = document.getElementById('register-error');
+      const successEl = document.getElementById('register-success');
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      const password = document.getElementById('register-password').value;
+      const confirm = document.getElementById('register-confirm').value;
+
+      if (password !== confirm) {
+        errorEl.textContent = 'As senhas não conferem';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Criando conta...';
+
+      const name = document.getElementById('register-name').value;
+      const email = document.getElementById('register-email').value;
+
+      try {
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errorEl.textContent = data.error;
+          errorEl.style.display = 'block';
+        } else {
+          window.location.href = '/dashboard';
+        }
+      } catch {
+        errorEl.textContent = 'Erro de conexão';
+        errorEl.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Criar conta';
+      }
+    }
+  </script>
+</body>
+</html>
