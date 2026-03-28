@@ -92,13 +92,22 @@ jobs:
       - name: Run Suite - Task Manager
         id: run_suite
         run: |
-          qanode run suite \
+          set +e
+          RUN_JSON=$(qanode run suite \
             --suite-name "Suite Task Manager" \
             --project-name "Task Manager" \
             --var base_url_ci=${{ env.APP_PUBLIC_URL }} \
             --wait \
             --timeout 300 \
-            --json
+            --json)
+          EXIT_CODE=$?
+          set -e
+
+          echo "$RUN_JSON" > qanode-run.json
+          RUN_ID=$(echo "$RUN_JSON" | jq -r '.id')
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+          exit $EXIT_CODE
         env:
           QANODE_URL: ${{ secrets.QANODE_URL }}
           QANODE_TOKEN: ${{ secrets.QANODE_TOKEN }}
@@ -106,12 +115,10 @@ jobs:
       - name: Download test artifacts
         if: always()
         run: |
-          RUN_ID=$(qanode run suite \
-            --suite-name "Suite Task Manager" \
-            --project-name "Task Manager" \
-            --json | jq -r '.id' 2>/dev/null || echo "")
-          if [ -n "$RUN_ID" ]; then
-            qanode runs artifacts --run-id "$RUN_ID" --out ./artifacts || true
+          if [ -n "${{ steps.run_suite.outputs.run_id }}" ]; then
+            qanode runs artifacts \
+              --run-id "${{ steps.run_suite.outputs.run_id }}" \
+              --out ./artifacts || true
           fi
         env:
           QANODE_URL: ${{ secrets.QANODE_URL }}
